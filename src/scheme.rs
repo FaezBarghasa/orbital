@@ -5,8 +5,8 @@ use std::{cmp, collections::BTreeMap, fs, io, str};
 use log::{error, info, warn};
 use orbclient::{
     self, ButtonEvent, ClipboardEvent, Color, Event, EventOption, FocusEvent, HoverEvent, KeyEvent,
-    MouseEvent, MouseRelativeEvent, MoveEvent, QuitEvent, Renderer, ResizeEvent, ScreenEvent,
-    TextInputEvent,
+    MouseEvent, MouseRelativeEvent, MoveEvent, QuitEvent, ResizeEvent, ScreenEvent,
+    TextInputEvent, TouchEvent,
 };
 use redox_scheme::Response;
 use syscall::EVENT_READ;
@@ -547,36 +547,7 @@ impl OrbitalScheme {
         let mut total_redraw_opt: Option<Rect> = None;
 
         self.compositor
-            .redraw_windows(&mut total_redraw_opt, |display, rect| {
-                display.rect(&rect, self.config.background_color.into());
-
-                for (id, focused) in self.order.iter_back_to_front() {
-                    if let Some(window) = self.windows.get(&id) {
-                        window.draw_title(
-                            display,
-                            &rect,
-                            focused,
-                            if focused {
-                                &self.window_max
-                            } else {
-                                &self.window_max_unfocused
-                            },
-                            if focused {
-                                &self.window_close
-                            } else {
-                                &self.window_close_unfocused
-                            },
-                        );
-                        window.draw(display, &rect);
-                    }
-                }
-
-                if let Some(popup) = &popup {
-                    display
-                        .roi_mut(popup_rect.as_ref().unwrap())
-                        .blend(&popup.roi(&Rect::new(0, 0, popup.width(), popup.height())));
-                }
-            });
+            .redraw_windows(&mut total_redraw_opt);
 
         self.compositor.redraw_cursor(total_redraw_opt);
 
@@ -1526,6 +1497,14 @@ impl OrbitalScheme {
         }
     }
 
+    fn touch_event(&mut self, event: TouchEvent) {
+        if let Some(id) = self.order.iter_front_to_back().next() {
+            if let Some(window) = self.windows.get_mut(&id) {
+                window.event(event.to_event());
+            }
+        }
+    }
+
     fn event(&mut self, event_union: Event) {
         self.order
             .rezbuffer(&|id| self.windows.get(&id).unwrap().zorder);
@@ -1555,6 +1534,7 @@ impl OrbitalScheme {
                 }
             }
             EventOption::Resize(event) => self.resize_event(event),
+            EventOption::Touch(event) => self.touch_event(event),
             event => error!("unexpected event: {:?}", event),
         }
     }

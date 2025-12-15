@@ -43,6 +43,12 @@ pub struct Config {
     pub text_color: ConfigColor,
     #[serde(default = "text_highlight_color_default")]
     pub text_highlight_color: ConfigColor,
+
+    #[serde(default = "scale_default")]
+    pub scale: i32,
+
+    #[serde(default = "display_layout_default")]
+    pub display_layout: String,
 }
 
 fn background_color_default() -> ConfigColor {
@@ -59,6 +65,12 @@ fn text_color_default() -> ConfigColor {
 }
 fn text_highlight_color_default() -> ConfigColor {
     Color::rgb(0xE7, 0xE7, 0xE7).into()
+}
+fn scale_default() -> i32 {
+    1
+}
+fn display_layout_default() -> String {
+    "horizontal".to_string()
 }
 
 /// Create a sane default Orbital [Config] in case none is supplied or it is unreadable
@@ -85,6 +97,8 @@ impl Default for Config {
             bar_highlight_color: bar_highlight_color_default(),
             text_color: text_color_default(),
             text_highlight_color: text_highlight_color_default(),
+            scale: scale_default(),
+            display_layout: display_layout_default(),
         }
     }
 }

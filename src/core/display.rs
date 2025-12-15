@@ -4,9 +4,11 @@ use orbclient::{Color, Renderer};
 use std::{convert::TryInto, fs::File, io, os::unix::io::AsRawFd, slice};
 
 use crate::core::{
+    gpu::Gpu,
     image::{ImageRef, ImageRoiMut},
     rect::Rect,
 };
+use crate::config::Config;
 
 fn display_fd_map(
     width: i32,
@@ -43,11 +45,16 @@ pub struct Display {
     pub scale: i32,
     pub file: File,
     pub image: ImageRef<'static>,
+    pub gpu: Gpu,
 }
 
 impl Display {
-    pub fn new(x: i32, y: i32, width: i32, height: i32, file: File) -> io::Result<Self> {
-        let scale = (height / 1600) + 1;
+    pub fn new(x: i32, y: i32, width: i32, height: i32, file: File, config: &Config) -> io::Result<Self> {
+        let scale = if config.scale > 0 {
+            config.scale
+        } else {
+            (height / 1600) + 1
+        };
         let image = display_fd_map(width, height, file.as_raw_fd() as usize).map_err(|err| {
             error!("failed to map display: {}", err);
             io::Error::from_raw_os_error(err.errno())
@@ -58,6 +65,7 @@ impl Display {
             scale,
             file,
             image,
+            gpu: Gpu::new(),
         })
     }
 

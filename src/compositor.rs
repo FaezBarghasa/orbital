@@ -206,7 +206,6 @@ impl Compositor {
     pub fn redraw_windows(
         &mut self,
         total_redraw_opt: &mut Option<Rect>,
-        draw_windows: impl Fn(&mut Display, Rect),
     ) {
         // go through the list of rectangles pending a redraw and expand the total redraw rectangle
         // to encompass all of them
@@ -225,7 +224,8 @@ impl Compositor {
                     continue;
                 }
 
-                draw_windows(display, rect);
+                // Use the GPU for rendering instead of the old draw_windows function.
+                display.gpu.render();
             }
         }
     }

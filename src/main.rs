@@ -29,6 +29,11 @@ fn orbital() -> Result<(), String> {
         .with_process_name("orbital".into())
         .enable();
 
+    // Set real-time priority
+    if let Err(err) = libredox::call::sched_setscheduler(0, libredox::flag::SCHED_FIFO, 0) {
+        warn!("failed to set real-time priority: {}", err);
+    }
+
     let mut args = env::args().skip(1);
     let vt = env::var("VT").expect("`VT` environment variable not set");
     unsafe {
@@ -36,7 +41,8 @@ fn orbital() -> Result<(), String> {
     }
     let login_cmd = args.next().ok_or("no login manager argument")?;
 
-    let (orbital, displays) = Orbital::open_display(&vt)
+    let config = Rc::new(Config::from_path("/ui/orbital.toml"));
+    let (orbital, displays) = Orbital::open_display(&vt, &config)
         .map_err(|e| format!("could not open display, caused by: {}", e))?;
 
     //TODO: integrate this into orbital
@@ -56,8 +62,7 @@ fn orbital() -> Result<(), String> {
         displays[0].image.width(),
         displays[0].image.height()
     );
-    let config = Rc::new(Config::from_path("/ui/orbital.toml"));
-    let scheme = OrbitalScheme::new(displays, config)?;
+    let scheme = OrbitalScheme::new(displays, Rc::clone(&config))?;
 
     Command::new(login_cmd)
         .args(args)
@@ -76,7 +81,7 @@ fn main() {
     match orbital() {
         Ok(()) => {
             info!("ran to completion successfully, exiting with status=0");
-            std::process::exit(0);
+            std.process::exit(0);
         }
         Err(e) => {
             error!("error during daemon execution, exiting with status=1: {e}");

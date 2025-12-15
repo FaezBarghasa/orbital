@@ -11,7 +11,7 @@ use std::{
 use event::{EventQueue, user_data};
 use libredox::flag;
 use log::{debug, error};
-use orbclient::{Color, Event};
+use orbclient::{Color, Event, EventOption};
 use redox_scheme::{
     CallerCtx, OpenResult, RequestKind, Response, SignalBehavior, Socket,
     scheme::{IntoTag, Op, OpRead, SchemeSync},
@@ -22,11 +22,13 @@ use syscall::{
 };
 
 use crate::scheme::OrbitalScheme;
+use crate::config::Config;
 use display::Display;
 
 pub(crate) mod display;
 pub(crate) mod image;
 pub(crate) mod rect;
+pub(crate) mod gpu;
 
 #[cfg(target_pointer_width = "32")]
 const CLIPBOARD_FLAG: usize = 1 << 31;
@@ -109,7 +111,7 @@ impl Orbital {
     }
 
     /// Open an orbital display and connect to the scheme
-    pub fn open_display(vt: &str) -> io::Result<(Self, Vec<Display>)> {
+    pub fn open_display(vt: &str, config: &Config) -> io::Result<(Self, Vec<Display>)> {
         let mut buffer = [0; 1024];
 
         let input_handle = File::open(format!("/scheme/input/consumer/{vt}"))?;
@@ -153,7 +155,7 @@ impl Orbital {
             .map_err(|_| io::Error::new(ErrorKind::Other, "Could not create Utf8 Url String"))?;
         let (scheme_name, path) = Self::url_parts(&url)?;
         let (vt_screen, width, height) = Self::parse_display_path(path);
-        let mut displays = vec![Display::new(0, 0, width, height, display)?];
+        let mut displays = vec![Display::new(0, 0, width, height, display, config)?];
 
         // If display server supports multiple displays in a VT
         if vt_screen.contains('.') {
@@ -186,19 +188,22 @@ impl Orbital {
                 let (_scheme_name, path) = Self::url_parts(&url)?;
                 let (_vt_screen, width, height) = Self::parse_display_path(path);
 
-                let x = if let Some(last) = displays.last() {
-                    last.x + last.image.width()
+                let (x, y) = if let Some(last) = displays.last() {
+                    if config.display_layout == "vertical" {
+                        (last.x, last.y + last.image.height())
+                    } else {
+                        (last.x + last.image.width(), last.y)
+                    }
                 } else {
-                    0
+                    (0, 0)
                 };
-                let y = 0;
 
                 debug!(
                     "Extra display {} at {}, {}, {}, {}",
                     screen_i, x, y, width, height
                 );
 
-                displays.push(Display::new(x, y, width, height, extra_file)?);
+                displays.push(Display::new(x, y, width, height, extra_file, config)?);
             }
         }
 

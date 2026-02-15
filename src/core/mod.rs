@@ -21,14 +21,15 @@ use syscall::{
     schemev2::NewFdFlags,
 };
 
-use crate::scheme::OrbitalScheme;
 use crate::config::Config;
+use crate::scheme::OrbitalScheme;
 use display::Display;
 
 pub(crate) mod display;
+pub(crate) mod gpu;
 pub(crate) mod image;
 pub(crate) mod rect;
-pub(crate) mod gpu;
+pub(crate) mod scanout;
 
 #[cfg(target_pointer_width = "32")]
 const CLIPBOARD_FLAG: usize = 1 << 31;

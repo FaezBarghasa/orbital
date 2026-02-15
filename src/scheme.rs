@@ -5,8 +5,8 @@ use std::{cmp, collections::BTreeMap, fs, io, str};
 use log::{error, info, warn};
 use orbclient::{
     self, ButtonEvent, ClipboardEvent, Color, Event, EventOption, FocusEvent, HoverEvent, KeyEvent,
-    MouseEvent, MouseRelativeEvent, MoveEvent, QuitEvent, ResizeEvent, ScreenEvent,
-    TextInputEvent, TouchEvent,
+    MouseEvent, MouseRelativeEvent, MoveEvent, QuitEvent, ResizeEvent, ScreenEvent, TextInputEvent,
+    TouchEvent,
 };
 use redox_scheme::Response;
 use syscall::EVENT_READ;
@@ -547,7 +547,7 @@ impl OrbitalScheme {
         let mut total_redraw_opt: Option<Rect> = None;
 
         self.compositor
-            .redraw_windows(&mut total_redraw_opt);
+            .redraw_windows(&self.windows, &self.order, &mut total_redraw_opt);
 
         self.compositor.redraw_cursor(total_redraw_opt);
 

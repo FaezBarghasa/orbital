@@ -8,6 +8,10 @@ use log::{error, info};
 use crate::core::display::Display;
 use crate::core::image::Image;
 use crate::core::rect::Rect;
+use crate::core::scanout::{self, ScanoutState};
+use crate::window::Window;
+use crate::window_order::WindowOrder;
+use std::collections::BTreeMap;
 
 #[repr(C, packed)]
 struct CursorCommand {
@@ -36,6 +40,8 @@ pub struct Compositor {
     cursor_y: i32,
     cursor_hot_x: i32,
     cursor_hot_y: i32,
+    /// Per-display scanout state.
+    pub scanout_states: Vec<ScanoutState>,
 }
 
 impl Compositor {
@@ -57,11 +63,10 @@ impl Compositor {
             hw_cursor = true;
         }
 
+        let count = displays.len();
         Compositor {
             displays,
-
-            redraws,
-
+            redraws: Vec::new(),
             hw_cursor,
             update_cursor_timer: Instant::now(),
             cursor: Arc::new(Image::new(0, 0)),
@@ -69,6 +74,7 @@ impl Compositor {
             cursor_y: 0,
             cursor_hot_x: 0,
             cursor_hot_y: 0,
+            scanout_states: vec![ScanoutState::Composited; count],
         }
     }
 
@@ -205,8 +211,58 @@ impl Compositor {
 
     pub fn redraw_windows(
         &mut self,
+        windows: &BTreeMap<usize, Window>,
+        window_order: &WindowOrder,
         total_redraw_opt: &mut Option<Rect>,
     ) {
+        // Update scanout states for each display
+        let mut force_schedule = Vec::new();
+        let displays = &mut self.displays;
+        let scanout_states = &mut self.scanout_states;
+
+        for (i, display) in displays.iter_mut().enumerate() {
+            let front_window = scanout::frontmost_window_for_display(
+                window_order.iter_front_to_back(),
+                windows,
+                display,
+            );
+            let new_state = if let Some((wid, window)) = front_window {
+                scanout::try_engage(wid, window, display)
+            } else {
+                ScanoutState::Composited
+            };
+
+            // State transition?
+            let old_state = &scanout_states[i];
+            match (old_state, &new_state) {
+                (ScanoutState::Composited, ScanoutState::DirectScanout { .. }) => {
+                    // Transitioning TO direct scanout.
+                    // The client will take over, we don't need to do anything special here
+                    // other than update the state, as the next redraw loop will skip this display.
+                }
+                (ScanoutState::DirectScanout { .. }, ScanoutState::Composited) => {
+                    // Transitioning FROM direct scanout.
+                    // We need to force a full redraw of this display to ensure the compositor
+                    // content is restored.
+                    scanout::disengage(old_state, display);
+                    force_schedule.push(display.screen_rect());
+                }
+                (
+                    ScanoutState::DirectScanout { window_id: old_id },
+                    ScanoutState::DirectScanout { window_id: new_id },
+                ) if old_id != new_id => {
+                    // Switching direct scanout windows.
+                    // Usually handled by the windows themselves negotiating, but good to note.
+                }
+                _ => {}
+            }
+            scanout_states[i] = new_state;
+        }
+
+        for rect in force_schedule {
+            self.schedule(rect);
+        }
+
         // go through the list of rectangles pending a redraw and expand the total redraw rectangle
         // to encompass all of them
         for original_rect in self.redraws.drain(..) {
@@ -218,7 +274,13 @@ impl Compositor {
                 );
             }
 
-            for display in self.displays.iter_mut() {
+            for (display, scanout_state) in self.displays.iter_mut().zip(self.scanout_states.iter())
+            {
+                // Skip displays that are in direct scanout mode
+                if scanout_state.is_direct() {
+                    continue;
+                }
+
                 let rect = original_rect.intersection(&display.screen_rect());
                 if rect.is_empty() {
                     continue;
@@ -255,7 +317,12 @@ impl Compositor {
 
         let cursor_rect = self.cursor_rect();
 
-        for display in self.displays.iter_mut() {
+        for (display, scanout_state) in self.displays.iter_mut().zip(self.scanout_states.iter()) {
+            // Skip displays that are in direct scanout mode (cursor is drawn by client or hw cursor)
+            if scanout_state.is_direct() {
+                continue;
+            }
+
             let rect = total_redraw.intersection(&display.screen_rect());
             if !rect.is_empty() {
                 let cursor_intersect = rect.intersection(&cursor_rect);
@@ -272,7 +339,17 @@ impl Compositor {
 
     pub fn sync_rect(&mut self, total_redraw: Rect) {
         // Sync any parts of displays that changed
-        for (i, display) in self.displays.iter_mut().enumerate() {
+        for (i, (display, scanout_state)) in self
+            .displays
+            .iter_mut()
+            .zip(self.scanout_states.iter())
+            .enumerate()
+        {
+            // Skip displays that are in direct scanout mode
+            if scanout_state.is_direct() {
+                continue;
+            }
+
             let display_redraw = total_redraw.intersection(&display.screen_rect());
             if !display_redraw.is_empty() {
                 // Keep synced with vesad

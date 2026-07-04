@@ -4,7 +4,7 @@ use std::{cmp, collections::BTreeMap, fs, io, str};
 
 use log::{error, info, warn};
 use orbclient::{
-    self, ButtonEvent, ClipboardEvent, Color, Event, EventOption, FocusEvent, HoverEvent, KeyEvent,
+    self, ButtonEvent, ClipboardEvent, ClipboardAction, Color, Event, EventOption, FocusEvent, HoverEvent, KeyEvent,
     MouseEvent, MouseRelativeEvent, MoveEvent, QuitEvent, ResizeEvent, ScreenEvent, TextInputEvent,
     TouchEvent,
 };
@@ -871,8 +871,10 @@ impl OrbitalScheme {
         if let Some(id) = self.order.focused() {
             if let Some(window) = self.windows.get_mut(&id) {
                 //TODO: set window's clipboard to primary
-                let clipboard_event = ClipboardEvent { kind, size: 0 }.to_event();
-                window.event(clipboard_event);
+                if let Some(action) = ClipboardAction::try_from_u8(kind) {
+                    let clipboard_event = ClipboardEvent { kind: action, size: 0 }.to_event();
+                    window.event(clipboard_event);
+                }
             }
         }
     }
@@ -1003,9 +1005,9 @@ impl OrbitalScheme {
                 orbclient::K_DOWN => self.move_front_window(0, GRID_SIZE),
                 orbclient::K_LEFT => self.move_front_window(-GRID_SIZE, 0),
                 orbclient::K_RIGHT => self.move_front_window(GRID_SIZE, 0),
-                orbclient::K_C => self.clipboard_event(orbclient::CLIPBOARD_COPY),
-                orbclient::K_X => self.clipboard_event(orbclient::CLIPBOARD_CUT),
-                orbclient::K_V => self.clipboard_event(orbclient::CLIPBOARD_PASTE),
+                orbclient::K_C => self.clipboard_event(1),
+                orbclient::K_X => self.clipboard_event(2),
+                orbclient::K_V => self.clipboard_event(3),
                 _ => {
                     //TODO: remove hack for sending super events to lowest numbered window
                     // ADM is this related to Launcher or Background or something?

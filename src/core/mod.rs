@@ -13,7 +13,7 @@ use libredox::flag;
 use log::{debug, error};
 use orbclient::{Color, Event, EventOption};
 use redox_scheme::{
-    CallerCtx, OpenResult, RequestKind, Response, SignalBehavior, Socket,
+    CallerCtx, OpenResult, RequestKind, Response, SignalBehavior, Socket, SchemeState,
     scheme::{IntoTag, Op, OpRead, SchemeSync},
 };
 use syscall::{
@@ -86,6 +86,7 @@ pub struct Orbital {
 
     /// Handle to "/scheme/input/consumer" to receive input events.
     pub input: File,
+    pub state: SchemeState,
 }
 
 impl Orbital {
@@ -139,7 +140,7 @@ impl Orbital {
             io::Error::from_raw_os_error(err.errno())
         })?;
 
-        let scheme = Socket::nonblock("orbital").map_err(|err| {
+        let scheme = Socket::nonblock().map_err(|err| {
             error!("failed to open '/scheme/orbital': {}", err);
             err
         })?;
@@ -213,6 +214,7 @@ impl Orbital {
                 scheme,
                 delayed: VecDeque::new(),
                 input: input_handle,
+                state: SchemeState::new(),
             },
             displays,
         ))
@@ -322,7 +324,7 @@ impl Orbital {
                                     me.orb.scheme_write(Response::new(res, read_op))?;
                                 }
                             } else {
-                                let resp = op.handle_sync(caller_ctx, &mut me);
+                                let resp = op.handle_sync(caller_ctx, &mut me, &mut me.orb.state);
                                 me.orb.scheme_write(resp)?;
                             }
                         }

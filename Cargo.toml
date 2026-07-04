@@ -11,10 +11,10 @@ edition = "2024"
 [dependencies]
 redox-log = "0.1"
 log = "0.4.14"
-orbclient = "0.3.47"
+orbclient = "=0.3.47"
 orbfont = "0.1"
 redox_syscall = { version = "0.5", features = ["std"] }
-redox-scheme = "0.6"
+redox-scheme = "0.11"
 serde = "1"
 serde_derive = "1"
 thiserror = "2.0.12"

@@ -5,8 +5,7 @@ use std::{cmp, collections::BTreeMap, fs, io, str};
 use log::{error, info, warn};
 use orbclient::{
     self, ButtonEvent, ClipboardEvent, ClipboardAction, Color, Event, EventOption, FocusEvent, HoverEvent, KeyEvent,
-    MouseEvent, MouseRelativeEvent, MoveEvent, QuitEvent, ResizeEvent, ScreenEvent, TextInputEvent,
-    TouchEvent,
+    MouseEvent, MouseRelativeEvent, MoveEvent, QuitEvent, Renderer, ResizeEvent, ScreenEvent, TextInputEvent,
 };
 use redox_scheme::Response;
 use syscall::EVENT_READ;
@@ -1499,14 +1498,6 @@ impl OrbitalScheme {
         }
     }
 
-    fn touch_event(&mut self, event: TouchEvent) {
-        if let Some(id) = self.order.iter_front_to_back().next() {
-            if let Some(window) = self.windows.get_mut(&id) {
-                window.event(event.to_event());
-            }
-        }
-    }
-
     fn event(&mut self, event_union: Event) {
         self.order
             .rezbuffer(&|id| self.windows.get(&id).unwrap().zorder);
@@ -1536,7 +1527,6 @@ impl OrbitalScheme {
                 }
             }
             EventOption::Resize(event) => self.resize_event(event),
-            EventOption::Touch(event) => self.touch_event(event),
             event => error!("unexpected event: {:?}", event),
         }
     }

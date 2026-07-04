@@ -30,8 +30,11 @@ fn orbital() -> Result<(), String> {
         .enable();
 
     // Set real-time priority
-    if let Err(err) = libredox::call::sched_setscheduler(0, libredox::flag::SCHED_FIFO, 0) {
-        warn!("failed to set real-time priority: {}", err);
+    let param = libc::sched_param {
+        sched_priority: 0,
+    };
+    if unsafe { libc::sched_setscheduler(0, libc::SCHED_FIFO, &param) } < 0 {
+        warn!("failed to set real-time priority");
     }
 
     let mut args = env::args().skip(1);

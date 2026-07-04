@@ -13,8 +13,8 @@ use libredox::flag;
 use log::{debug, error};
 use orbclient::{Color, Event, EventOption};
 use redox_scheme::{
-    CallerCtx, OpenResult, RequestKind, Response, SignalBehavior, Socket, SchemeState,
-    scheme::{IntoTag, Op, OpRead, SchemeSync},
+    CallerCtx, OpenResult, RequestKind, Response, SignalBehavior, Socket,
+    scheme::{IntoTag, Op, OpRead, SchemeSync, SchemeState},
 };
 use syscall::{
     EAGAIN, ECANCELED, EOPNOTSUPP, EWOULDBLOCK, error::EINVAL, flag::EventFlags,
@@ -86,7 +86,6 @@ pub struct Orbital {
 
     /// Handle to "/scheme/input/consumer" to receive input events.
     pub input: File,
-    pub state: SchemeState,
 }
 
 impl Orbital {
@@ -214,7 +213,6 @@ impl Orbital {
                 scheme,
                 delayed: VecDeque::new(),
                 input: input_handle,
-                state: SchemeState::new(),
             },
             displays,
         ))
@@ -243,6 +241,7 @@ impl Orbital {
         let scheme_fd = self.scheme.inner().raw();
         let input_fd = self.input.as_raw_fd();
 
+        let mut state = SchemeState::new();
         let mut me = OrbitalHandler { orb: self, handler };
         event_queue.subscribe(scheme_fd, Source::Scheme, event::EventFlags::READ)?;
         event_queue.subscribe(input_fd as usize, Source::Input, event::EventFlags::READ)?;
@@ -324,7 +323,7 @@ impl Orbital {
                                     me.orb.scheme_write(Response::new(res, read_op))?;
                                 }
                             } else {
-                                let resp = op.handle_sync(caller_ctx, &mut me, &mut me.orb.state);
+                                let resp = op.handle_sync(caller_ctx, &mut me, &mut state);
                                 me.orb.scheme_write(resp)?;
                             }
                         }
@@ -383,7 +382,14 @@ pub struct OrbitalHandler {
     handler: OrbitalScheme,
 }
 impl SchemeSync for OrbitalHandler {
-    fn open(&mut self, path: &str, _flags: usize, _ctx: &CallerCtx) -> syscall::Result<OpenResult> {
+    fn openat(
+        &mut self,
+        _fd: usize,
+        path: &str,
+        _flags: usize,
+        _fcntl_flags: u32,
+        _ctx: &CallerCtx,
+    ) -> syscall::Result<OpenResult> {
         let mut parts = path.split('/');
 
         let path_first_char = path.chars().nth(0).unwrap_or('\0');

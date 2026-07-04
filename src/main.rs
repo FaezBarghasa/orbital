@@ -81,7 +81,7 @@ fn main() {
     match orbital() {
         Ok(()) => {
             info!("ran to completion successfully, exiting with status=0");
-            std.process::exit(0);
+            std::process::exit(0);
         }
         Err(e) => {
             error!("error during daemon execution, exiting with status=1: {e}");
